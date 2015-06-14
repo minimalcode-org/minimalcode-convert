@@ -18,6 +18,7 @@ package org.minimalcode.convert;
 import org.minimalcode.reflect.Property;
 
 public abstract class SimplePropertyConverter<S, T> implements PropertyConverter<S, T> {
+
     @Override
     public boolean canConvert(Property sourceProperty, Property targetProperty) {
         return true;

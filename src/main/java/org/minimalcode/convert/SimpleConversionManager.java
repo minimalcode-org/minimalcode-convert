@@ -33,12 +33,22 @@ public class SimpleConversionManager implements ConversionManager {
     }
 
     @Override
+    public boolean canConvert(Class<?> sourceType, Class<?> targetType) {
+        return canConvert(sourceType, targetType, null, null);
+    }
+
+    @Override
     public boolean canConvert(Class<?> sourceType, Class<?> targetType, Property sourceProperty, Property targetProperty) {
         assertNotNull(sourceType, "Cannot check a converter with a 'null' sourceType.");
         assertNotNull(targetType, "Cannot check a converter with a 'null' targetType.");
 
         PropertyConverter converter = converters.get(new ConversionPair(sourceType, targetType));
         return (converter != null) && converter.canConvert(sourceProperty, targetProperty);
+    }
+
+    @Override
+    public <T> Object convert(Object source, Class<T> targetType) {
+        return convert(source, targetType, null, null);
     }
 
     @Override
@@ -53,7 +63,7 @@ public class SimpleConversionManager implements ConversionManager {
         PropertyConverter converter = converters.get(new ConversionPair(source.getClass(), targetType));
 
         if(converter == null) {
-            throw new IllegalArgumentException("Cannot found a register converter in the manager for source type "
+            throw new IllegalArgumentException("Cannot found a registred converter in the manager for source type "
                     + source.getClass().getName() + " and target type " + targetType.getName());
         }
 
