@@ -26,7 +26,7 @@ import java.util.Map;
 
 public class SimpleConversionManager implements ConversionManager {
 
-    private final Map<ConversionPair, List<PropertyConverter>> converters = new HashMap<ConversionPair, List<PropertyConverter>>();
+    private final Map<ConversionPair, LinkedList<PropertyConverter>> converters = new HashMap<ConversionPair, LinkedList<PropertyConverter>>();
 
     public void addConverter(PropertyConverter<?, ?> converter) {
         try {
@@ -44,14 +44,14 @@ public class SimpleConversionManager implements ConversionManager {
         assertNotNull(converter, "Cannot add a 'null' converter.");
 
         ConversionPair key = new ConversionPair(sourceType, targetType);
-        List<PropertyConverter> convertersList = converters.get(key);
+        LinkedList<PropertyConverter> convertersList = converters.get(key);
 
         if(convertersList == null) {
             convertersList = new LinkedList<PropertyConverter>();
             converters.put(key, convertersList);
         }
 
-        convertersList.add(converter);
+        convertersList.addFirst(converter);
     }
 
     @Override
