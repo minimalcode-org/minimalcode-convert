@@ -20,11 +20,13 @@ import org.minimalcode.reflect.Property;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 
 public class SimpleConversionManager implements ConversionManager {
 
-    private final Map<ConversionPair, PropertyConverter> converters = new HashMap<ConversionPair, PropertyConverter>();
+    private final Map<ConversionPair, List<PropertyConverter>> converters = new HashMap<ConversionPair, List<PropertyConverter>>();
 
     public void addConverter(PropertyConverter<?, ?> converter) {
         try {
@@ -41,7 +43,15 @@ public class SimpleConversionManager implements ConversionManager {
         assertNotNull(targetType, "Cannot add a converter with a 'null' targetType.");
         assertNotNull(converter, "Cannot add a 'null' converter.");
 
-        converters.put(new ConversionPair(sourceType, targetType), converter);
+        ConversionPair key = new ConversionPair(sourceType, targetType);
+        List<PropertyConverter> convertersList = converters.get(key);
+
+        if(convertersList == null) {
+            convertersList = new LinkedList<PropertyConverter>();
+            converters.put(key, convertersList);
+        }
+
+        convertersList.add(converter);
     }
 
     @Override
@@ -54,8 +64,18 @@ public class SimpleConversionManager implements ConversionManager {
         assertNotNull(sourceType, "Cannot check a converter with a 'null' sourceType.");
         assertNotNull(targetType, "Cannot check a converter with a 'null' targetType.");
 
-        PropertyConverter converter = converters.get(new ConversionPair(sourceType, targetType));
-        return (converter != null) && converter.canConvert(sourceProperty, targetProperty);
+        ConversionPair key = new ConversionPair(sourceType, targetType);
+        List<PropertyConverter> convertersList = converters.get(key);
+
+        if(convertersList != null) {
+            for(PropertyConverter converter : convertersList) {
+                if(converter.canConvert(sourceProperty, targetProperty)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     @Override
@@ -72,14 +92,24 @@ public class SimpleConversionManager implements ConversionManager {
             return null;
         }
 
-        PropertyConverter converter = converters.get(new ConversionPair(source.getClass(), targetType));
+        ConversionPair key = new ConversionPair(source.getClass(), targetType);
+        List<PropertyConverter> convertersList = converters.get(key);
+        PropertyConverter candidate = null;
 
-        if(converter == null) {
+        if(convertersList != null) {
+            for(PropertyConverter converter : convertersList) {
+                if(converter.canConvert(sourceProperty, targetProperty)) {
+                    candidate = converter;
+                }
+            }
+        }
+
+        if(candidate == null) {
             throw new IllegalArgumentException("Cannot found a registred converter in the manager for source type "
                     + source.getClass().getName() + " and target type " + targetType.getName());
         }
 
-        return converter.convert(source, sourceProperty, targetProperty);
+        return candidate.convert(source, sourceProperty, targetProperty);
     }
 
     private static void assertNotNull(Object obj, String message) {
@@ -98,11 +128,11 @@ public class SimpleConversionManager implements ConversionManager {
         }
 
         @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj == null || getClass() != obj.getClass()) return false;
 
-            ConversionPair other = (ConversionPair) o;
+            ConversionPair other = (ConversionPair) obj;
             return sourceType.equals(other.sourceType) && targetType.equals(other.targetType);
         }
 
