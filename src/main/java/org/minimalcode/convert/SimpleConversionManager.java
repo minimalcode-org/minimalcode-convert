@@ -25,17 +25,17 @@ public class SimpleConversionManager implements ConversionManager {
     private final Map<ConversionPair, PropertyConverter> converters = new ConcurrentHashMap<ConversionPair, PropertyConverter>();
 
     public void addConverter(Class<?> sourceType, Class<?> targetType, PropertyConverter converter) {
-        assertNotNull(sourceType, "");
-        assertNotNull(targetType, "");
-        assertNotNull(converter, "");
+        assertNotNull(sourceType, "Cannot add a converter with a 'null' sourceType.");
+        assertNotNull(targetType, "Cannot add a converter with a 'null' targetType.");
+        assertNotNull(converter, "Cannot add a 'null' converter.");
 
         converters.put(new ConversionPair(sourceType, targetType), converter);
     }
 
     @Override
     public boolean canConvert(Class<?> sourceType, Class<?> targetType, Property sourceProperty, Property targetProperty) {
-        assertNotNull(sourceType, "");
-        assertNotNull(targetType, "");
+        assertNotNull(sourceType, "Cannot check a converter with a 'null' sourceType.");
+        assertNotNull(targetType, "Cannot check a converter with a 'null' targetType.");
 
         PropertyConverter converter = converters.get(new ConversionPair(sourceType, targetType));
         return (converter != null) && converter.canConvert(sourceProperty, targetProperty);
@@ -44,13 +44,17 @@ public class SimpleConversionManager implements ConversionManager {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Object convert(Object source, Class<T> targetType, Property sourceProperty, Property targetProperty) {
-        assertNotNull(source, "");
-        assertNotNull(targetType, "");
+        assertNotNull(targetType, "Cannot convert with a 'null' targetType.");
+
+        if(source == null) {
+            return null;
+        }
 
         PropertyConverter converter = converters.get(new ConversionPair(source.getClass(), targetType));
 
         if(converter == null) {
-            throw new IllegalArgumentException();
+            throw new IllegalArgumentException("Cannot found a register converter in the manager for source type "
+                    + source.getClass().getName() + " and target type " + targetType.getName());
         }
 
         return converter.convert(source, sourceProperty, targetProperty);
