@@ -17,12 +17,24 @@ package org.minimalcode.convert;
 
 import org.minimalcode.reflect.Property;
 
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class SimpleConversionManager implements ConversionManager {
 
-    private final Map<ConversionPair, PropertyConverter> converters = new ConcurrentHashMap<ConversionPair, PropertyConverter>();
+    private final Map<ConversionPair, PropertyConverter> converters = new HashMap<ConversionPair, PropertyConverter>();
+
+    public void addConverter(PropertyConverter<?, ?> converter) {
+        try {
+            Type[] types = ((ParameterizedType) converter.getClass().getGenericSuperclass()).getActualTypeArguments();
+            addConverter((Class<?>) types[0], (Class<?>) types[1], converter);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Cannot resolve the generic types of " + converter + ". " +
+                    "Use SimpleConversionManager::addConverter(Class<?>, Class<?>, PropertyConverter) instead.");
+        }
+    }
 
     public void addConverter(Class<?> sourceType, Class<?> targetType, PropertyConverter converter) {
         assertNotNull(sourceType, "Cannot add a converter with a 'null' sourceType.");
