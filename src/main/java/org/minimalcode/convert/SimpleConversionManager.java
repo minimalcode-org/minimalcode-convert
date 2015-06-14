@@ -23,10 +23,19 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class SimpleConversionManager implements ConversionManager {
 
-    private final Map<ConversionPair, LinkedList<PropertyConverter>> converters = new HashMap<ConversionPair, LinkedList<PropertyConverter>>();
+    private static final PropertyConverter<Object, Object> NOT_FOUND = new SimplePropertyConverter<Object, Object>() {
+        @Override
+        public Object convert(Object source) {
+            return null;// never executed
+        }
+    };
+
+    private final Map<Pair, PropertyConverter> convertersCache = new ConcurrentHashMap<Pair, PropertyConverter>();
+    private final Map<Pair, LinkedList<PropertyConverter>> converters = new HashMap<Pair, LinkedList<PropertyConverter>>();
 
     public void addConverter(PropertyConverter<?, ?> converter) {
         try {
@@ -43,15 +52,40 @@ public class SimpleConversionManager implements ConversionManager {
         assertNotNull(targetType, "Cannot add a converter with a 'null' targetType.");
         assertNotNull(converter, "Cannot add a 'null' converter.");
 
-        ConversionPair key = new ConversionPair(sourceType, targetType);
-        LinkedList<PropertyConverter> convertersList = converters.get(key);
+        Pair key = new Pair(sourceType, targetType, null, null);
+        LinkedList<PropertyConverter> convertersForPair = converters.get(key);
 
-        if(convertersList == null) {
-            convertersList = new LinkedList<PropertyConverter>();
-            converters.put(key, convertersList);
+        if(convertersForPair == null) {
+            convertersForPair = new LinkedList<PropertyConverter>();
+            converters.put(key, convertersForPair);
         }
 
-        convertersList.addFirst(converter);
+        convertersCache.clear();// invalidate
+        convertersForPair.addFirst(converter);
+    }
+
+    private PropertyConverter findConverter(Class<?> sourceType, Class<?> targetType, Property sourceProperty, Property targetProperty) {
+        Pair key = new Pair(sourceType, targetType, sourceProperty, targetProperty);
+        PropertyConverter converter = convertersCache.get(key);
+
+        if(converter == null) {
+            Pair keyWithoutProperties = new Pair(sourceType, targetType, null, null);
+            List<PropertyConverter> convertersForPair = converters.get(keyWithoutProperties);
+
+            if(convertersForPair != null) {
+                for(PropertyConverter candidate : convertersForPair) {
+                    if(candidate.canConvert(sourceProperty, targetProperty)) {
+                        convertersCache.put(key, candidate);
+                        return candidate;
+                    }
+                }
+            }
+
+            convertersCache.put(key, NOT_FOUND);
+            return NOT_FOUND;
+        }
+
+        return converter;
     }
 
     @Override
@@ -64,18 +98,7 @@ public class SimpleConversionManager implements ConversionManager {
         assertNotNull(sourceType, "Cannot check a converter with a 'null' sourceType.");
         assertNotNull(targetType, "Cannot check a converter with a 'null' targetType.");
 
-        ConversionPair key = new ConversionPair(sourceType, targetType);
-        List<PropertyConverter> convertersList = converters.get(key);
-
-        if(convertersList != null) {
-            for(PropertyConverter converter : convertersList) {
-                if(converter.canConvert(sourceProperty, targetProperty)) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
+        return findConverter(sourceType, targetType, sourceProperty, targetProperty) != NOT_FOUND;
     }
 
     @Override
@@ -92,24 +115,15 @@ public class SimpleConversionManager implements ConversionManager {
             return null;
         }
 
-        ConversionPair key = new ConversionPair(source.getClass(), targetType);
-        List<PropertyConverter> convertersList = converters.get(key);
-        PropertyConverter candidate = null;
+        PropertyConverter converter = findConverter(source.getClass(), targetType, sourceProperty, targetProperty);
 
-        if(convertersList != null) {
-            for(PropertyConverter converter : convertersList) {
-                if(converter.canConvert(sourceProperty, targetProperty)) {
-                    candidate = converter;
-                }
-            }
+        if(converter == NOT_FOUND) {
+            throw new IllegalArgumentException("Cannot found a registred converter in the manager " +
+                    "for source type '" + source.getClass().getName() + "' and target type '" + targetType.getName() +
+                    "' and source property '" + sourceProperty + "' and target property '" + targetProperty + "'");
         }
 
-        if(candidate == null) {
-            throw new IllegalArgumentException("Cannot found a registred converter in the manager for source type "
-                    + source.getClass().getName() + " and target type " + targetType.getName());
-        }
-
-        return candidate.convert(source, sourceProperty, targetProperty);
+        return converter.convert(source, sourceProperty, targetProperty);
     }
 
     private static void assertNotNull(Object obj, String message) {
@@ -118,13 +132,17 @@ public class SimpleConversionManager implements ConversionManager {
         }
     }
 
-    private static class ConversionPair {
+    private static class Pair {
         private final Class<?> sourceType;
         private final Class<?> targetType;
+        private final Property sourceProperty;// Nullable
+        private final Property targetProperty;// Nullable
 
-        public ConversionPair(Class<?> sourceType, Class<?> targetType) {
+        public Pair(Class<?> sourceType, Class<?> targetType, Property sourceProperty, Property targetProperty) {
             this.sourceType = sourceType;
             this.targetType = targetType;
+            this.sourceProperty = sourceProperty;
+            this.targetProperty = targetProperty;
         }
 
         @Override
@@ -132,13 +150,20 @@ public class SimpleConversionManager implements ConversionManager {
             if (this == obj) return true;
             if (obj == null || getClass() != obj.getClass()) return false;
 
-            ConversionPair other = (ConversionPair) obj;
-            return sourceType.equals(other.sourceType) && targetType.equals(other.targetType);
+            Pair other = (Pair) obj;
+            return sourceType.equals(other.sourceType) && targetType.equals(other.targetType)
+                && !(sourceProperty != null ? !sourceProperty.equals(other.sourceProperty) : other.sourceProperty != null)
+                && !(targetProperty != null ? !targetProperty.equals(other.targetProperty) : other.targetProperty != null);
         }
 
         @Override
         public int hashCode() {
-            return 31 * sourceType.hashCode() + targetType.hashCode();
+            int result = sourceType.hashCode();
+            result = 31 * result + targetType.hashCode();
+            result = 31 * result + (sourceProperty != null ? sourceProperty.hashCode() : 0);
+            result = 31 * result + (targetProperty != null ? targetProperty.hashCode() : 0);
+
+            return result;
         }
     }
 }
