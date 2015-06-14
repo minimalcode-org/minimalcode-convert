@@ -102,13 +102,13 @@ public class SimpleConversionManager implements ConversionManager {
     }
 
     @Override
-    public <T> Object convert(Object source, Class<T> targetType) {
+    public <T> T convert(Object source, Class<T> targetType) {
         return convert(source, targetType, null, null);
     }
 
     @Override
     @SuppressWarnings("unchecked")
-    public <T> Object convert(Object source, Class<T> targetType, Property sourceProperty, Property targetProperty) {
+    public <T> T convert(Object source, Class<T> targetType, Property sourceProperty, Property targetProperty) {
         assertNotNull(targetType, "Cannot convert with a 'null' targetType.");
 
         if(source == null) {
@@ -123,7 +123,7 @@ public class SimpleConversionManager implements ConversionManager {
                     "' and source property '" + sourceProperty + "' and target property '" + targetProperty + "'");
         }
 
-        return converter.convert(source, sourceProperty, targetProperty);
+        return (T) converter.convert(source, sourceProperty, targetProperty);
     }
 
     private static void assertNotNull(Object obj, String message) {
